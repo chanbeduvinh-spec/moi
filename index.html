@@ -696,7 +696,7 @@ details.card{margin:10px 0}summary{cursor:pointer;font-weight:500;min-height:28p
 (function(){
 var items=[],results={},chars={},ctl=null,ranText=true,busy=false,MAX=40,$=function(i){return document.getElementById(i)};
 var LS={get:function(k){try{return localStorage.getItem(k)||""}catch(e){return ""}},set:function(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
-if(!window.claude){$("oc-gem").hidden=false;$("oc-key").value=LS.get("oc_gkey");$("oc-model").value=LS.get("oc_gmodel")||"gemini-2.5-flash";$("oc-key").oninput=function(){LS.set("oc_gkey",this.value.trim())};$("oc-model").oninput=function(){LS.set("oc_gmodel",this.value.trim())}}
+if(!window.claude){$("oc-gem").hidden=false;$("oc-key").value=LS.get("oc_gkey");var sm=LS.get("oc_gmodel");$("oc-model").value=(sm&&sm.indexOf("gemini-2.5")!==0)?sm:"gemini-3.8-flash";$("oc-key").oninput=function(){LS.set("oc_gkey",this.value.trim())};$("oc-model").oninput=function(){LS.set("oc_gmodel",this.value.trim())}}
 function b64(blob){return new Promise(function(r){var f=new FileReader();f.onload=function(){r(String(f.result).split(",")[1])};f.readAsDataURL(blob)})}
 function dlBlob(name,text){var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type:"text/plain;charset=utf-8"}));a.download=name;document.body.appendChild(a);a.click();a.remove();return Promise.resolve()}
 var chain=Promise.resolve();
@@ -706,12 +706,12 @@ function gem(){
   return function(prompt,opt){var p=chain.then(function(){return gcall(prompt,opt,key,0)});chain=p.catch(function(){});return p};
 }
 async function gcall(prompt,opt,key,n){
-  var model=opt.modelTier==="complex"?"gemini-2.5-pro":($("oc-model").value.trim()||"gemini-2.5-flash");
+  var model=opt.modelTier==="complex"?"gemini-3.1-pro-preview":($("oc-model").value.trim()||"gemini-3.8-flash");
   var parts=[{text:prompt}];
   for(var b of opt.images||[])parts.push({inline_data:{mime_type:"image/jpeg",data:await b64(b)}});
   var r=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(model)+":generateContent?key="+encodeURIComponent(key),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:parts}],generationConfig:{temperature:0}}),signal:opt.signal});
   if(r.status===429&&n<3){say("Gemini báo quá giới hạn lượt, đang chờ rồi thử lại...");await new Promise(function(f){setTimeout(f,(n+1)*15000)});return gcall(prompt,opt,key,n+1)}
-  if(!r.ok){var e=new Error("gemini "+r.status);e.msg=(r.status===400||r.status===403||r.status===404)?"Gemini từ chối (key sai hoặc tên model không tồn tại). Kiểm tra lại key và model.":r.status===429?"Gemini hết lượt dùng, chờ một lúc rồi thử lại, hoặc tắt “Chia ô nhỏ” để dùng ít lượt hơn.":"Gemini lỗi "+r.status+", thử lại nhé.";throw e}
+  if(!r.ok){var det="";try{var ej=await r.json();det=(ej.error&&ej.error.message)||""}catch(_){}var e=new Error("gemini "+r.status);e.msg=(r.status===400||r.status===403||r.status===404)?"Gemini từ chối. Kiểm tra key đã dán đủ chưa, hoặc đổi tên model (ví dụ gemini-3.8-flash).":r.status===429?"Gemini hết lượt dùng, chờ một lúc rồi thử lại, hoặc tắt “Chia ô nhỏ” để dùng ít lượt hơn.":"Gemini lỗi "+r.status+", thử lại nhé.";e.msg+=" ["+r.status+(det?": "+det.slice(0,200):"")+"]";throw e}
   var j=await r.json();
   var c=(j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts)||[];
   return {text:c.map(function(p){return p.text||""}).join("")};
